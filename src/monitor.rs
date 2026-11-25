@@ -110,6 +110,9 @@ fn parse_stat(pid: u32, stat: &str, page_size: u64) -> Option<(Process, u64)> {
         "t" => "Tracing stop",
         "I" => "Idle",
         "X" | "x" => "Dead",
+        "K" => "Wakekill",
+        "W" => "Waking",
+        "P" => "Parked",
         _ => "Unknown",
     };
     let parent_pid = fields.next()?.parse::<u32>().ok().filter(|&pid| pid != 0);
@@ -148,5 +151,43 @@ mod tests {
         assert_eq!(process.memory_bytes, 24 * 4096);
         assert_eq!(cpu_ticks, 29);
         assert!(parse_stat(42, "42 (incomplete) S 7", 4096).is_none());
+    }
+
+    #[test]
+    fn stat_labels_every_documented_state() {
+        let states = [
+            ("R", "Running"),
+            ("S", "Sleeping"),
+            ("D", "Disk sleep"),
+            ("Z", "Zombie"),
+            ("T", "Stopped"),
+            ("t", "Tracing stop"),
+            ("I", "Idle"),
+            ("X", "Dead"),
+            ("x", "Dead"),
+            ("K", "Wakekill"),
+            ("W", "Waking"),
+            ("P", "Parked"),
+            ("?", "Unknown"),
+        ];
+        for (code, label) in states {
+            let stat = format!("42 (x) {code} 7 0 0 0 0 0 0 0 0 0 14 15 0 0 0 0 0 0 22 0 24");
+            let (process, _) = parse_stat(42, &stat, 4096).unwrap();
+            assert_eq!(process.status, label, "state code {code}");
+        }
+    }
+
+    #[test]
+    fn stat_handles_unusual_field_values() {
+        let line = |parent: &str, rss: &str| {
+            format!("42 (x) S {parent} 0 0 0 0 0 0 0 0 0 14 15 0 0 0 0 0 0 22 0 {rss}")
+        };
+        let (process, _) = parse_stat(42, &line("0", "-5"), 4096).unwrap();
+        assert_eq!(process.parent_pid, None);
+        assert_eq!(process.memory_bytes, 0);
+        let (process, _) = parse_stat(42, &line("1", &i64::MAX.to_string()), 4096).unwrap();
+        assert_eq!(process.memory_bytes, u64::MAX);
+        assert!(parse_stat(42, "42 x S 7", 4096).is_none());
+        assert!(parse_stat(42, &line("7", "abc"), 4096).is_none());
     }
 }
