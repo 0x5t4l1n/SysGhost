@@ -296,3 +296,32 @@ fn bytes(value: u64) -> String {
     }
     unreachable!()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{bytes, percent};
+
+    #[test]
+    fn bytes_uses_binary_units() {
+        assert_eq!(bytes(0), "0 B");
+        assert_eq!(bytes(1023), "1023 B");
+        assert_eq!(bytes(1024), "1.0 KiB");
+        assert_eq!(bytes(1536), "1.5 KiB");
+        assert_eq!(bytes(1 << 20), "1.0 MiB");
+        assert_eq!(bytes(1 << 30), "1.0 GiB");
+        assert_eq!(bytes(1 << 40), "1.0 TiB");
+    }
+
+    #[test]
+    fn bytes_stops_at_tebibytes() {
+        assert_eq!(bytes(2048 << 40), "2048.0 TiB");
+    }
+
+    #[test]
+    fn percent_formats_one_decimal_or_dash() {
+        assert_eq!(percent(None), "—");
+        assert_eq!(percent(Some(0.0)), "0.0%");
+        assert_eq!(percent(Some(12.34)), "12.3%");
+        assert_eq!(percent(Some(250.0)), "250.0%");
+    }
+}
